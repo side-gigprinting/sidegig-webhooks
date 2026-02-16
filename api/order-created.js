@@ -2,7 +2,18 @@
 // api/order-created.js
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
-import { Pool } from 'pg';
+
+import { Pool } from "pg";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+
+  // Trust Supabase's certificate chain by providing the CA
+  ssl: {
+    ca: process.env.DATABASE_CA,
+  },
+});
+
 
 // ---------- Singletons (created outside handler for perf) ----------
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
