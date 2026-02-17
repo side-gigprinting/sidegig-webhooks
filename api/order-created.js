@@ -2,22 +2,23 @@
 // api/order-created.js
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { Pool } from 'pg';
 
-import { Pool } from "pg";
+// ---------- Singletons (created outside handler for perf) ----------
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
-const pool = new Pool({
+// IMPORTANT:
+// Use ONE Pool everywhere, and include the CA cert so pg trusts Supabase.
+// This avoids: "self-signed certificate in certificate chain" [1](https://supabase.com/docs)[2](https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting)
+const db = new Pool({
   connectionString: process.env.DATABASE_URL,
-
-  // Trust Supabase's certificate chain by providing the CA
   ssl: {
     ca: process.env.DATABASE_CA,
   },
 });
-
-
-// ---------- Singletons (created outside handler for perf) ----------
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const db = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Helper: download remote file to Buffer (uses global fetch on Vercel)
 async function downloadToBuffer(url) {
@@ -54,8 +55,12 @@ function verifyShopifyHmac(rawBody, hmacHeader) {
     .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET ?? '')
     .update(rawBody)
     .digest('base64');
+
   try {
-    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmacHeader ?? '', 'utf8'));
+    return crypto.timingSafeEqual(
+      Buffer.from(digest),
+      Buffer.from(hmacHeader ?? '', 'utf8')
+    );
   } catch {
     return false;
   }
@@ -88,7 +93,7 @@ export default async function handler(req, res) {
     // Parse order JSON
     const order = JSON.parse(rawBody.toString('utf8'));
 
-    // (Optional) upsert into your orders table (Table 3) for traceability
+    // (Optional) upsert into your orders table for traceability
     await db.query(
       `INSERT INTO orders (shopify_order_id, raw)
        VALUES ($1, $2)
@@ -130,7 +135,7 @@ export default async function handler(req, res) {
       // 4) Resolve SinaLite product mapping (placeholder — wire your real mapping later)
       const sinalite_product_id = li.vendor ?? 'UNKNOWN';
 
-      // 5) Insert the line_items row (Table 4)
+      // 5) Insert the line_items row
       await db.query(
         `INSERT INTO line_items
          (shopify_order_id, shopify_line_item_id, shopify_variant_id,
@@ -144,7 +149,7 @@ export default async function handler(req, res) {
           String(sinalite_product_id),
           selected_options,
           quantity,
-          finalArtworkUrl,      // may be null if no file was uploaded
+          finalArtworkUrl, // may be null if no file was uploaded
           'pending',
         ]
       );
