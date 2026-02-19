@@ -14,10 +14,12 @@ const supabase = createClient(
 // Use ONE Pool everywhere, and include the CA cert so pg trusts Supabase.
 // This avoids: "self-signed certificate in certificate chain" [1](https://supabase.com/docs)[2](https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting)
 
+
 function getDatabaseCa() {
-  const ca = process.env.DATABASE_CA || '';
-  return ca.replace(/\\n/g, '\n').trim();
+  const b64 = process.env.DATABASE_CA_B64 || '';
+  return Buffer.from(b64, 'base64').toString('utf-8').trim();
 }
+
 
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
