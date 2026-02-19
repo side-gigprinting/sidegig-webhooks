@@ -13,12 +13,20 @@ const supabase = createClient(
 // IMPORTANT:
 // Use ONE Pool everywhere, and include the CA cert so pg trusts Supabase.
 // This avoids: "self-signed certificate in certificate chain" [1](https://supabase.com/docs)[2](https://supabase.com/docs/guides/database/prisma/prisma-troubleshooting)
+
+function getDatabaseCa() {
+  const ca = process.env.DATABASE_CA || '';
+  return ca.replace(/\\n/g, '\n').trim();
+}
+
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    ca: process.env.DATABASE_CA,
+    ca: getDatabaseCa(),
+    rejectUnauthorized: true,
   },
 });
+
 
 // Helper: download remote file to Buffer (uses global fetch on Vercel)
 async function downloadToBuffer(url) {
